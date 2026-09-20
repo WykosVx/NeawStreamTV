@@ -19,6 +19,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.text.font.FontWeight
 import androidx.media3.common.MediaItem
+import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DefaultHttpDataSource
@@ -26,6 +27,8 @@ import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.ui.PlayerView
+import com.airbnb.lottie.LottieComposition
+import com.airbnb.lottie.compose.*
 
 @OptIn(UnstableApi::class)
 @Composable
@@ -37,21 +40,38 @@ fun PlayerScreen(
     val context = LocalContext.current
     var indiceActual by remember { mutableStateOf(indiceInicial) }
     var isLoading by remember { mutableStateOf(true) }
+    
+    // Control para evitar doble pulsación rápida en la TV que sature la memoria
+    var cambiandoCanal by remember { mutableStateOf(false) }
 
-    // Bypass del User-Agent
+    // Cargar animación Lottie desde assets de forma segura
+    val compositionResult = rememberLottieComposition(
+        spec = LottieCompositionSpec.Asset("animations/wykos_animation.json")
+    )
+    val lottieProgress by animateLottieCompositionAsState(
+        composition = compositionResult.value,
+        iterations = LottieConstants.IterateForever
+    )
+
+    // Bypass del User-Agent y tiempos de espera robustos
     val userAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-    val dataSourceFactory = DefaultHttpDataSource.Factory().setUserAgent(userAgent)
+    val dataSourceFactory = DefaultHttpDataSource.Factory()
+        .setUserAgent(userAgent)
+        .setConnectTimeoutMs(20000)
+        .setReadTimeoutMs(20000)
+
     val mediaSourceFactory = DefaultMediaSourceFactory(dataSourceFactory)
 
-    // OPTIMIZACIÓN DE BUFFER PARA TV (IPTV / En vivo)
-    // Esto fuerza a tener un buffer saludable para evitar microcortes constantes
+    // ESTABILIZACIÓN MÁXIMA DEL BÚFER PARA IPTV / EN VIVO
     val loadControl = DefaultLoadControl.Builder()
         .setBufferDurationsMs(
-            /* minBufferMs = */ 15000,      // Mínimo buffer antes de arrancar/reanudar (15 segundos)
-            /* maxBufferMs = */ 50000,      // Máximo buffer acumulado (50 segundos)
-            /* bufferForPlaybackMs = */ 2500, // Cuánto buffer necesita para empezar a reproducir rápido (2.5s)
-            /* bufferForPlaybackAfterRebufferMs = */ 5000 // Buffer tras un corte antes de reanudar (5s)
+            /* minBufferMs = */ 45000,              // Sube el mínimo a 45 segundos para un colchón masivo
+            /* maxBufferMs = */ 180000,             // Permite acumular hasta 3 minutos de búfer en RAM
+            /* bufferForPlaybackMs = */ 2500,       // Inicia rápido con solo 2.5s iniciales
+            /* bufferForPlaybackAfterRebufferMs = */ 10000 // Exige 10s seguros tras un corte antes de reanudar
         )
+        .setBackBuffer(15000, true) // Memoria retroactiva para tolerar microcortes de red
+        .setPrioritizeTimeOverSizeThresholds(true)
         .build()
 
     val exoPlayer = remember {
@@ -61,21 +81,32 @@ fun PlayerScreen(
             .build()
     }
 
-    // Listener real para detectar el estado del reproductor y quitar el loader de forma inteligente
     DisposableEffect(exoPlayer) {
         val listener = object : Player.Listener {
             override fun onPlaybackStateChanged(playbackState: Int) {
                 when (playbackState) {
                     Player.STATE_BUFFERING -> isLoading = true
-                    Player.STATE_READY -> isLoading = false
+                    Player.STATE_READY -> {
+                        isLoading = false
+                        cambiandoCanal = false
+                    }
                     Player.STATE_ENDED -> {}
                     Player.STATE_IDLE -> {}
                 }
             }
 
             override fun onIsPlayingChanged(isPlaying: Boolean) {
-                // Si ya está reproduciendo, aseguramos que el loader se oculte
-                if (isPlaying) isLoading = false
+                if (isPlaying) {
+                    isLoading = false
+                    cambiandoCanal = false
+                }
+            }
+
+            override fun onPlayerError(error: PlaybackException) {
+                isLoading = true
+                // Auto-recuperación ante caídas de stream en vivo
+                exoPlayer.prepare()
+                exoPlayer.playWhenReady = true
             }
         }
         exoPlayer.addListener(listener)
@@ -97,8 +128,11 @@ fun PlayerScreen(
     }
 
     fun cambiarCanal(direccion: Int) {
+        if (cambiandoCanal) return // Ignoramos si ya está procesando un cambio para no saturar la TV
+
         val nuevoIndice = indiceActual + direccion
         if (nuevoIndice in listaCanales.indices) {
+            cambiandoCanal = true
             indiceActual = nuevoIndice
         }
     }
@@ -138,12 +172,12 @@ fun PlayerScreen(
             }
         )
 
-        // Pantalla de carga sincronizada con el estado real del reproductor
+        // Pantalla de carga sincronizada con el estado real del reproductor y animación Lottie
         if (isLoading) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(Color.Black.copy(alpha = 0.7f)), // Fondo ligeramente oscuro para que no parpadee tan fuerte
+                    .background(Color.Black.copy(alpha = 0.8f)),
                 contentAlignment = Alignment.Center
             ) {
                 Column(
@@ -151,7 +185,20 @@ fun PlayerScreen(
                     verticalArrangement = Arrangement.Center
                 ) {
                     CircularProgressIndicator(color = Color(0xFFFFBF00))
-                    Spacer(modifier = Modifier.height(20.dp))
+                    Spacer(modifier = Modifier.height(16.dp))
+                    
+                    // Animación Lottie integrada de forma nativa
+                    if (compositionResult.value != null) {
+                        LottieAnimation(
+                            composition = compositionResult.value,
+                            progress = { lottieProgress },
+                            modifier = Modifier
+                                .width(120.dp)
+                                .height(70.dp)
+                        )
+                        Spacer(modifier = Modifier.height(10.dp))
+                    }
+
                     Text(
                         text = "Cargando: ${listaCanales[indiceActual].nombre}",
                         color = Color.White,
