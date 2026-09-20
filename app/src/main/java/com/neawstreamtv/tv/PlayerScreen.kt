@@ -27,8 +27,6 @@ import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.ui.PlayerView
-import com.airbnb.lottie.LottieComposition
-import com.airbnb.lottie.compose.*
 
 @OptIn(UnstableApi::class)
 @Composable
@@ -43,15 +41,6 @@ fun PlayerScreen(
     
     // Control para evitar doble pulsación rápida en la TV que sature la memoria
     var cambiandoCanal by remember { mutableStateOf(false) }
-
-    // Cargar animación Lottie desde assets de forma segura
-    val compositionResult = rememberLottieComposition(
-        spec = LottieCompositionSpec.Asset("animations/wykos_animation.json")
-    )
-    val lottieProgress by animateLottieCompositionAsState(
-        composition = compositionResult.value,
-        iterations = LottieConstants.IterateForever
-    )
 
     // Bypass del User-Agent y tiempos de espera robustos
     val userAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
@@ -172,7 +161,7 @@ fun PlayerScreen(
             }
         )
 
-        // Pantalla de carga sincronizada con el estado real del reproductor y animación Lottie
+        // Pantalla de carga limpia con indicador circular y nombre del canal
         if (isLoading) {
             Box(
                 modifier = Modifier
@@ -185,20 +174,7 @@ fun PlayerScreen(
                     verticalArrangement = Arrangement.Center
                 ) {
                     CircularProgressIndicator(color = Color(0xFFFFBF00))
-                    Spacer(modifier = Modifier.height(16.dp))
-                    
-                    // Animación Lottie integrada de forma nativa
-                    if (compositionResult.value != null) {
-                        LottieAnimation(
-                            composition = compositionResult.value,
-                            progress = { lottieProgress },
-                            modifier = Modifier
-                                .width(120.dp)
-                                .height(70.dp)
-                        )
-                        Spacer(modifier = Modifier.height(10.dp))
-                    }
-
+                    Spacer(modifier = Modifier.height(20.dp))
                     Text(
                         text = "Cargando: ${listaCanales[indiceActual].nombre}",
                         color = Color.White,
