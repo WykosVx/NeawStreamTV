@@ -1,6 +1,5 @@
 package com.neawstreamtv.tv
 
-import android.view.KeyEvent
 import androidx.annotation.OptIn
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -27,6 +26,7 @@ import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.ui.PlayerView
+import kotlinx.coroutines.delay
 
 @OptIn(UnstableApi::class)
 @Composable
@@ -38,36 +38,41 @@ fun PlayerScreen(
     val context = LocalContext.current
     var indiceActual by remember { mutableStateOf(indiceInicial) }
     var isLoading by remember { mutableStateOf(true) }
-    
-    // Control para evitar doble pulsación rápida en la TV que sature la memoria
     var cambiandoCanal by remember { mutableStateOf(false) }
+    
+    // Disparador clave para limpiar fugas de memoria y recrear el reproductor si se congela crónicamente
+    var playerRefreshTrigger by remember { mutableStateOf(0) }
 
-    // Bypass del User-Agent y tiempos de espera robustos
     val userAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-    val dataSourceFactory = DefaultHttpDataSource.Factory()
-        .setUserAgent(userAgent)
-        .setConnectTimeoutMs(20000)
-        .setReadTimeoutMs(20000)
 
-    val mediaSourceFactory = DefaultMediaSourceFactory(dataSourceFactory)
+    // Instancia de ExoPlayer sujeta al disparador de reseteo profundo
+    val exoPlayer = remember(playerRefreshTrigger) {
+        val dataSourceFactory = DefaultHttpDataSource.Factory()
+            .setUserAgent(userAgent)
+            .setConnectTimeoutMs(25000)
+            .setReadTimeoutMs(25000)
 
-    // ESTABILIZACIÓN MÁXIMA DEL BÚFER PARA IPTV / EN VIVO
-    val loadControl = DefaultLoadControl.Builder()
-        .setBufferDurationsMs(
-            /* minBufferMs = */ 45000,              // Sube el mínimo a 45 segundos para un colchón masivo
-            /* maxBufferMs = */ 180000,             // Permite acumular hasta 3 minutos de búfer en RAM
-            /* bufferForPlaybackMs = */ 2500,       // Inicia rápido con solo 2.5s iniciales
-            /* bufferForPlaybackAfterRebufferMs = */ 10000 // Exige 10s seguros tras un corte antes de reanudar
-        )
-        .setBackBuffer(15000, true) // Memoria retroactiva para tolerar microcortes de red
-        .setPrioritizeTimeOverSizeThresholds(true)
-        .build()
+        val mediaSourceFactory = DefaultMediaSourceFactory(dataSourceFactory)
 
-    val exoPlayer = remember {
+        // Control de búfer optimizado para evitar desbordamientos en maratones largas
+        val loadControl = DefaultLoadControl.Builder()
+            .setBufferDurationsMs(
+                /* minBufferMs = */ 25000,
+                /* maxBufferMs = */ 90000,             // 90 segundos máx para liberar RAM constantemente
+                /* bufferForPlaybackMs = */ 2000,
+                /* bufferForPlaybackAfterRebufferMs = */ 6000
+            )
+            .setBackBuffer(10000, true)
+            .setPrioritizeTimeOverSizeThresholds(true)
+            .setMaxBufferBytes(30 * 1024 * 1024)      // Lote estricto de 30 MB para cuidar la memoria de la TV Box
+            .build()
+
         ExoPlayer.Builder(context)
             .setMediaSourceFactory(mediaSourceFactory)
             .setLoadControl(loadControl)
-            .build()
+            .build().apply {
+                playWhenReady = true
+            }
     }
 
     DisposableEffect(exoPlayer) {
@@ -79,8 +84,7 @@ fun PlayerScreen(
                         isLoading = false
                         cambiandoCanal = false
                     }
-                    Player.STATE_ENDED -> {}
-                    Player.STATE_IDLE -> {}
+                    Player.STATE_ENDED, Player.STATE_IDLE -> {}
                 }
             }
 
@@ -93,7 +97,6 @@ fun PlayerScreen(
 
             override fun onPlayerError(error: PlaybackException) {
                 isLoading = true
-                // Auto-recuperación ante caídas de stream en vivo
                 exoPlayer.prepare()
                 exoPlayer.playWhenReady = true
             }
@@ -106,7 +109,8 @@ fun PlayerScreen(
         }
     }
 
-    LaunchedEffect(indiceActual) {
+    // CARGA DE CANAL
+    LaunchedEffect(indiceActual, playerRefreshTrigger) {
         isLoading = true
         val canal = listaCanales[indiceActual]
         val mediaItem = MediaItem.fromUri(canal.url)
@@ -116,9 +120,24 @@ fun PlayerScreen(
         exoPlayer.playWhenReady = true
     }
 
-    fun cambiarCanal(direccion: Int) {
-        if (cambiandoCanal) return // Ignoramos si ya está procesando un cambio para no saturar la TV
+    // WATCHDOG ANTICONGELAMIENTO (24/7 Shield)
+    LaunchedEffect(isLoading, indiceActual) {
+        if (isLoading) {
+            delay(12000) // Fase 1: Tras 12s intenta refrescar la fuente
+            if (isLoading && !exoPlayer.isPlaying) {
+                exoPlayer.prepare()
+                exoPlayer.playWhenReady = true
+                
+                delay(13000) // Fase 2: Si a los 25s sigue congelado, destruye y recrea la instancia
+                if (isLoading && !exoPlayer.isPlaying) {
+                    playerRefreshTrigger++ // Esto dispara el "remember(playerRefreshTrigger)" y reconstruye el reproductor
+                }
+            }
+        }
+    }
 
+    fun cambiarCanal(direccion: Int) {
+        if (cambiandoCanal) return
         val nuevoIndice = indiceActual + direccion
         if (nuevoIndice in listaCanales.indices) {
             cambiandoCanal = true
@@ -133,15 +152,15 @@ fun PlayerScreen(
             .onPreviewKeyEvent { keyEvent ->
                 if (keyEvent.type == KeyEventType.KeyDown) {
                     when (keyEvent.nativeKeyEvent.keyCode) {
-                        KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_CHANNEL_UP -> {
+                        android.view.KeyEvent.KEYCODE_DPAD_UP, android.view.KeyEvent.KEYCODE_CHANNEL_UP -> {
                             cambiarCanal(-1)
                             true
                         }
-                        KeyEvent.KEYCODE_DPAD_DOWN, KeyEvent.KEYCODE_CHANNEL_DOWN -> {
+                        android.view.KeyEvent.KEYCODE_DPAD_DOWN, android.view.KeyEvent.KEYCODE_CHANNEL_DOWN -> {
                             cambiarCanal(1)
                             true
                         }
-                        KeyEvent.KEYCODE_BACK -> {
+                        android.view.KeyEvent.KEYCODE_BACK -> {
                             onBack()
                             true
                         }
@@ -161,7 +180,6 @@ fun PlayerScreen(
             }
         )
 
-        // Pantalla de carga limpia con indicador circular y nombre del canal
         if (isLoading) {
             Box(
                 modifier = Modifier
