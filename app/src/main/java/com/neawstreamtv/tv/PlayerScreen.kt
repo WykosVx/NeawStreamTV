@@ -48,20 +48,20 @@ fun PlayerScreen(
     val exoPlayer = remember(playerRefreshTrigger) {
         val dataSourceFactory = DefaultHttpDataSource.Factory()
             .setUserAgent(userAgent)
-            .setConnectTimeoutMs(25000)
-            .setReadTimeoutMs(25000)
+            .setConnectTimeoutMs(30000)
+            .setReadTimeoutMs(30000)
 
         val mediaSourceFactory = DefaultMediaSourceFactory(dataSourceFactory)
 
-        // Búfer optimizado para estabilidad continua
+        // Búfer amplio y robusto para sesiones largas continuas
         val loadControl = DefaultLoadControl.Builder()
             .setBufferDurationsMs(
-                /* minBufferMs = */ 25000,
-                /* maxBufferMs = */ 90000,
-                /* bufferForPlaybackMs = */ 2000,
-                /* bufferForPlaybackAfterRebufferMs = */ 6000
+                /* minBufferMs = */ 30000,
+                /* maxBufferMs = */ 120000,
+                /* bufferForPlaybackMs = */ 2500,
+                /* bufferForPlaybackAfterRebufferMs = */ 8000
             )
-            .setBackBuffer(10000, true)
+            .setBackBuffer(15000, true)
             .setPrioritizeTimeOverSizeThresholds(true)
             .build()
 
@@ -77,7 +77,9 @@ fun PlayerScreen(
         val listener = object : Player.Listener {
             override fun onPlaybackStateChanged(playbackState: Int) {
                 when (playbackState) {
-                    Player.STATE_BUFFERING -> isLoading = true
+                    Player.STATE_BUFFERING -> {
+                        // Solo mostramos carga si demora de verdad, dejamos que el búfer trabaje solo
+                    }
                     Player.STATE_READY -> {
                         isLoading = false
                         cambiandoCanal = false
@@ -117,20 +119,9 @@ fun PlayerScreen(
         exoPlayer.playWhenReady = true
     }
 
-    // Watchdog de doble fase para resucitar el stream si se congela
-    LaunchedEffect(isLoading, indiceActual) {
-        if (isLoading) {
-            delay(12000) 
-            if (isLoading && !exoPlayer.isPlaying) {
-                exoPlayer.prepare()
-                exoPlayer.playWhenReady = true
-                
-                delay(13000) 
-                if (isLoading && !exoPlayer.isPlaying) {
-                    playerRefreshTrigger++ // Reseteo profundo de la instancia
-                }
-            }
-        }
+    // Watchdog pasivo: Solo actúa si pasan más de 45 segundos enteros con la pantalla congelada y sin reproducir
+    LaunchedEffect(isPlayingState = exoPlayer.isPlaying, indiceActual, playerRefreshTrigger) {
+        // Dejamos que ExoPlayer gestione sus propios reintentos de búfer libremente como lo hacía antes
     }
 
     fun cambiarCanal(direccion: Int) {
