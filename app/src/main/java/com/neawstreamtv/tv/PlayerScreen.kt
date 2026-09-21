@@ -40,7 +40,7 @@ fun PlayerScreen(
     var isLoading by remember { mutableStateOf(true) }
     var cambiandoCanal by remember { mutableStateOf(false) }
     
-    // Disparador para recrear el reproductor si el watchdog detecta un bloqueo profundo
+    // Disparador para recrear el reproductor si es necesario
     var playerRefreshTrigger by remember { mutableStateOf(0) }
 
     val userAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
@@ -77,9 +77,7 @@ fun PlayerScreen(
         val listener = object : Player.Listener {
             override fun onPlaybackStateChanged(playbackState: Int) {
                 when (playbackState) {
-                    Player.STATE_BUFFERING -> {
-                        // Solo mostramos carga si demora de verdad, dejamos que el búfer trabaje solo
-                    }
+                    Player.STATE_BUFFERING -> {}
                     Player.STATE_READY -> {
                         isLoading = false
                         cambiandoCanal = false
@@ -117,11 +115,6 @@ fun PlayerScreen(
         exoPlayer.setMediaItem(mediaItem)
         exoPlayer.prepare()
         exoPlayer.playWhenReady = true
-    }
-
-    // Watchdog pasivo: Solo actúa si pasan más de 45 segundos enteros con la pantalla congelada y sin reproducir
-    LaunchedEffect(isPlayingState = exoPlayer.isPlaying, indiceActual, playerRefreshTrigger) {
-        // Dejamos que ExoPlayer gestione sus propios reintentos de búfer libremente como lo hacía antes
     }
 
     fun cambiarCanal(direccion: Int) {
