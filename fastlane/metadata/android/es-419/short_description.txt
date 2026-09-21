@@ -1,1 +1,0 @@
-Reproductor multimedia para Android TV desarrollado en Kotlin
