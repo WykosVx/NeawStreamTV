@@ -6,7 +6,6 @@ plugins {
 android {
     namespace = "com.neawstreamtv.tv"
     compileSdk {
-        // Mantiene tu configuración moderna de Android 16
         version = release(36) {
             minorApiLevel = 1
         }
