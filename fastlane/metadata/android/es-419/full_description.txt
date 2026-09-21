@@ -1,0 +1,11 @@
+NeawStreamTV es un reproductor multimedia nativo y minimalista diseñado específicamente para dispositivos Android TV, Google TV y Fire TV Stick. Desarrollado de forma moderna en Kotlin, utiliza el motor de renderizado oficial ExoPlayer (Media3) para garantizar una reproducción fluida y eficiente de transmisiones en alta definición.
+
+Características principales:
+- Interfaz limpia adaptada para una navegación cómoda usando exclusivamente el control remoto de tu televisor.
+- Soporte optimizado para la reproducción de flujos de video y transmisiones en vivo mediante enlaces HLS (.m3u8).
+- Herramienta de software libre, de código abierto y completamente independiente, respetando la privacidad del usuario al no incluir rastreadores ni telemetría de terceros.
+
+NOTA IMPORTANTE / DESCARGO DE RESPONSABILIDAD:
+NeawStreamTV es una herramienta tecnológica neutra. La aplicación se distribuye completamente vacía: NO contiene, NO aloja, NO distribuye ni NO provee ningún tipo de contenido audiovisual, canales de televisión ni listas de reproducción predefinidas. 
+
+El desarrollador no se hace responsable del uso que el usuario final decida darle al software. Es responsabilidad única y exclusiva del usuario aportar sus propias listas de reproducción o enlaces multimedia obtenidos de manera legal y autorizada.
