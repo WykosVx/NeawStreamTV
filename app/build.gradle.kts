@@ -6,6 +6,7 @@ plugins {
 android {
     namespace = "com.neawstreamtv.tv"
     compileSdk {
+        // Mantiene tu configuración moderna de Android 16
         version = release(36) {
             minorApiLevel = 1
         }
@@ -17,13 +18,12 @@ android {
         targetSdk = 36
         versionCode = 1
         versionName = "1.0"
-
     }
 
-   buildTypes {
+    buildTypes {
         release {
-            isMinifyEnabled = false
-            signingConfig = signingConfigs.getByName("debug") 
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -40,9 +40,11 @@ android {
 }
 
 dependencies {
-
     implementation("androidx.compose.material3:material3")
-    implementation("io.coil-kt:coil-compose:2.6.0")
+    implementation("io.coil-kt:coil-compose:2.6.0") {
+        exclude(group = "io.opencensus")
+    }
+    
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.appcompat)
     implementation(platform(libs.androidx.compose.bom))
@@ -59,12 +61,12 @@ dependencies {
     debugImplementation(libs.androidx.compose.ui.test.manifest)
 
     // ==========================================
-    // AGREGADO: Librerías para Reproducción de Video y Redes
+    // Librerías para Reproducción de Video y Redes
     // ==========================================
-    // 1. Android Media3 ExoPlayer (El reproductor nativo)
+    // 1. Android Media3 ExoPlayer (El reproductor nativo de código abierto)
     implementation("androidx.media3:media3-exoplayer:1.4.1")
     implementation("androidx.media3:media3-ui:1.4.1")
 
-    // 2. OkHttp (Para descargar tu lista M3U de internet de forma ultra rápida)
+    // 2. OkHttp (Librería de red abierta y segura)
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
 }
