@@ -40,12 +40,11 @@ fun PlayerScreen(
     var isLoading by remember { mutableStateOf(true) }
     var cambiandoCanal by remember { mutableStateOf(false) }
     
-    // Disparador clave para limpiar fugas de memoria y recrear el reproductor si se congela crónicamente
+    // Disparador para recrear el reproductor si el watchdog detecta un bloqueo profundo
     var playerRefreshTrigger by remember { mutableStateOf(0) }
 
     val userAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 
-    // Instancia de ExoPlayer sujeta al disparador de reseteo profundo
     val exoPlayer = remember(playerRefreshTrigger) {
         val dataSourceFactory = DefaultHttpDataSource.Factory()
             .setUserAgent(userAgent)
@@ -54,17 +53,16 @@ fun PlayerScreen(
 
         val mediaSourceFactory = DefaultMediaSourceFactory(dataSourceFactory)
 
-        // Control de búfer optimizado para evitar desbordamientos en maratones largas
+        // Búfer optimizado para estabilidad continua
         val loadControl = DefaultLoadControl.Builder()
             .setBufferDurationsMs(
                 /* minBufferMs = */ 25000,
-                /* maxBufferMs = */ 90000,             // 90 segundos máx para liberar RAM constantemente
+                /* maxBufferMs = */ 90000,
                 /* bufferForPlaybackMs = */ 2000,
                 /* bufferForPlaybackAfterRebufferMs = */ 6000
             )
             .setBackBuffer(10000, true)
             .setPrioritizeTimeOverSizeThresholds(true)
-            .setMaxBufferBytes(30 * 1024 * 1024)      // Lote estricto de 30 MB para cuidar la memoria de la TV Box
             .build()
 
         ExoPlayer.Builder(context)
@@ -109,7 +107,6 @@ fun PlayerScreen(
         }
     }
 
-    // CARGA DE CANAL
     LaunchedEffect(indiceActual, playerRefreshTrigger) {
         isLoading = true
         val canal = listaCanales[indiceActual]
@@ -120,17 +117,17 @@ fun PlayerScreen(
         exoPlayer.playWhenReady = true
     }
 
-    // WATCHDOG ANTICONGELAMIENTO (24/7 Shield)
+    // Watchdog de doble fase para resucitar el stream si se congela
     LaunchedEffect(isLoading, indiceActual) {
         if (isLoading) {
-            delay(12000) // Fase 1: Tras 12s intenta refrescar la fuente
+            delay(12000) 
             if (isLoading && !exoPlayer.isPlaying) {
                 exoPlayer.prepare()
                 exoPlayer.playWhenReady = true
                 
-                delay(13000) // Fase 2: Si a los 25s sigue congelado, destruye y recrea la instancia
+                delay(13000) 
                 if (isLoading && !exoPlayer.isPlaying) {
-                    playerRefreshTrigger++ // Esto dispara el "remember(playerRefreshTrigger)" y reconstruye el reproductor
+                    playerRefreshTrigger++ // Reseteo profundo de la instancia
                 }
             }
         }
