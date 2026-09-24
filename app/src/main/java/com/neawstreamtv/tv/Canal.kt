@@ -1,3 +1,5 @@
+package com.neawstreamtv.tv
+
 data class Canal(
     val nombre: String,
     val url: String,
@@ -70,20 +72,12 @@ object M3uParser {
                 }
             }
         }
-        
-            for (linea in lineas) {
-                val cleanLine = linea.trim()
-                if (cleanLine.startsWith("http://") || cleanLine.startsWith("https://")) {
-                    canales.add(Canal(nombre = "Stream ${canales.size + 1}", url = cleanLine))
-                }
-            }
-        }
 
         LogManager.add("Listas procesadas: ${canales.size} canales encontrados.")
         return canales
     }
 
-    private fun extraerAtributo(linea:-String, atributo: String): String? {
+    private fun extraerAtributo(linea: String, atributo: String): String? {
         try {
             val pattern = "$atributo=\"([^\"]*)\"".toRegex(RegexOption.IGNORE_CASE)
             val match = pattern.find(linea)
