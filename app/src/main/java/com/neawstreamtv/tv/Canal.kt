@@ -1,35 +1,100 @@
-package com.neawstreamtv.tv
-
-// 1. Estructura de datos (Esta línea debe estar visible al inicio para evitar el error rojo)
 data class Canal(
     val nombre: String,
     val url: String,
-    val logoUrl: String
+    val logoUrl: String = "",
+    val grupo: String = ""
 )
 
-// 2. Tu algoritmo de lectura M3U
 object M3uParser {
-    fun parsearLista(body: String): List<Canal> {
-        val lineas = body.split("\n")
-        val listaTemporal = mutableListOf<Canal>()
-        var nombre: String? = null
-        var logoUrl: String? = null
+    fun parsearLista(contenido: String): List<Canal> {
+        val canales = mutableListOf<Canal>()
+        val lineas = contenido.lines()
+        
+        var nombreActual = ""
+        var logoActual = ""
+        var grupoActual = ""
 
-        for (rawLinea in lineas) {
-            val linea = rawLinea.trim()
-            if (linea.startsWith("#EXTINF")) {
-                // Extrae el nombre después de la última coma (igual que tu split(',').last)
-                nombre = linea.substringAfterLast(",").trim()
+        for (linea in lineas) {
+            val trimmed = linea.trim()
+            if (trimmed.isEmpty()) continue
 
-                // Expresión regular idéntica para buscar el logo de la TV
-                val match = Regex("""tvg-logo="([^"]+)"""").find(linea)
-                logoUrl = match?.groupValues?.get(1) ?: ""
-            } else if (linea.isNotEmpty() && !linea.startsWith("#") && nombre != null) {
-                listaTemporal.add(Canal(nombre = nombre, url = linea, logoUrl = logoUrl ?: ""))
-                nombre = null
-                logoUrl = null
+            if (trimmed.startsWith("#EXTINF:")) {
+                // Reiniciamos valores por cada EXTINF
+                nombreActual = ""
+                logoActual = ""
+                grupoActual = ""
+
+                try {
+                    grupoActual = extraerAtributo(trimmed, "group-title") 
+                        ?: extraerAtributo(trimmed, "tvg-group") 
+                        ?: ""
+
+                    logoActual = extraerAtributo(trimmed, "tvg-logo") ?: ""
+
+                    val ultimaComa = trimmed.lastIndexOf(',')
+                    if (ultimaComa != -1 && ultimaComa < trimmed.length - 1) {
+                        nombreActual = trimmed.substring(ultimaComa + 1).trim()
+                    }
+                } catch (e: Exception) {
+                    LogManager.add("Error parseando EXTINF: ${e.message}")
+                }
+            } else if (!trimmed.startsWith("#")) {
+                var urlFinal = trimmed
+                
+                if (trimmed.contains("|") && !trimmed.startsWith("http")) {
+                    val partes = trimmed.split("|", limit = 2)
+                    if (partes.size == 2) {
+                        nombreActual = partes[0].trim()
+                        urlFinal = partes[1].trim()
+                    }
+                }
+
+                if (urlFinal.startsWith("http") || urlFinal.startsWith("rtmp") || urlFinal.startsWith("rtsp") || urlFinal.startsWith("magnet")) {
+                    if (nombreActual.isEmpty()) {
+                        nombreActual = "Canal ${canales.size + 1}"
+                    }
+                    
+                    canales.add(
+                        Canal(
+                            nombre = nombreActual,
+                            url = urlFinal,
+                            logoUrl = logoActual,
+                            grupo = grupoActual
+                        )
+                    )
+                    
+                    // Limpiar estados para el siguiente
+                    nombreActual = ""
+                    logoActual = ""
+                    grupoActual = ""
+                }
             }
         }
-        return listaTemporal
+        
+            for (linea in lineas) {
+                val cleanLine = linea.trim()
+                if (cleanLine.startsWith("http://") || cleanLine.startsWith("https://")) {
+                    canales.add(Canal(nombre = "Stream ${canales.size + 1}", url = cleanLine))
+                }
+            }
+        }
+
+        LogManager.add("Listas procesadas: ${canales.size} canales encontrados.")
+        return canales
+    }
+
+    private fun extraerAtributo(linea:-String, atributo: String): String? {
+        try {
+            val pattern = "$atributo=\"([^\"]*)\"".toRegex(RegexOption.IGNORE_CASE)
+            val match = pattern.find(linea)
+            if (match != null) {
+                return match.groups[1]?.value
+            }
+            val patternSinComillas = "$atributo=([^\\s]+)".toRegex(RegexOption.IGNORE_CASE)
+            val match2 = patternSinComillas.find(linea)
+            return match2?.groups[1]?.value
+        } catch (e: Exception) {
+            return null
+        }
     }
 }

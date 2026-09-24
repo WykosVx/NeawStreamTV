@@ -61,12 +61,25 @@ dependencies {
     debugImplementation(libs.androidx.compose.ui.test.manifest)
 
     // ==========================================
-    // Librerías para Reproducción de Video y Redes
+    // Ecosistema de Reproducción de Video y Redes (Media3)
     // ==========================================
-    // 1. Android Media3 ExoPlayer (El reproductor nativo de código abierto)
     implementation("androidx.media3:media3-exoplayer:1.4.1")
     implementation("androidx.media3:media3-ui:1.4.1")
+    
+    // Extractor HLS / DASH / SmoothStreaming (Vital para leer listas M3U8 y flujos de IPTV)
+    implementation("androidx.media3:media3-exoplayer-hls:1.4.1")
+    implementation("androidx.media3:media3-exoplayer-dash:1.4.1")
 
-    // 2. OkHttp (Librería de red abierta y segura)
+    // OkHttp y su puente de red para ExoPlayer (Evita que los sockets HTTP mueran en streams largos)
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    implementation("androidx.media3:media3-datasource-okhttp:1.4.1")
+
+    // Decodificadores por software avanzados (FFmpeg para audio pesado AC3/DTS)
+    implementation("androidx.media3:media3-decoder-ffmpeg:1.4.1")
+    implementation("androidx.media3:media3-datasource-cache:1.4.1")
+    
+    // Soportes para todos los formatos de IPTV (HLS, DASH y RTSP)
+    implementation("androidx.media3:media3-exoplayer-hls:1.4.1")
+    implementation("androidx.media3:media3-exoplayer-dash:1.4.1")
+    implementation("androidx.media3:media3-exoplayer-rtsp:1.4.1")
 }

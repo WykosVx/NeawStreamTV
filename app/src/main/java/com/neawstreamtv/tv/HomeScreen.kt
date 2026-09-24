@@ -133,7 +133,10 @@ suspend fun descargarM3u(url: String): String = suspendCancellableCoroutine { co
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun HomeScreen(onPlayChannel: (List<Canal>, Int) -> Unit) {
+fun HomeScreen(
+    onPlayChannel: (List<Canal>, Int) -> Unit,
+    onOpenXtreamCode: () -> Unit = {}
+) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val prefs = remember { context.getSharedPreferences("NeawPrefs", Context.MODE_PRIVATE) }
@@ -143,7 +146,6 @@ fun HomeScreen(onPlayChannel: (List<Canal>, Int) -> Unit) {
     val canalesCompletos = remember { mutableStateListOf<Canal>() }
     val canalesMostrar = remember { mutableStateListOf<Canal>() }
     
-    // Guardamos el estado del scroll usando rememberSaveable para que recuerde la posición exacta al volver de otra pantalla
     val scrollState = rememberLazyGridState()
     val itemsPorPagina = 50
 
@@ -154,7 +156,6 @@ fun HomeScreen(onPlayChannel: (List<Canal>, Int) -> Unit) {
 
     var lastClickedIndex by rememberSaveable { mutableStateOf(0) }
 
-    // Reloj centralizado en tiempo real
     var tiempoActual by remember { mutableStateOf("") }
     LaunchedEffect(Unit) {
         while (true) {
@@ -173,7 +174,6 @@ fun HomeScreen(onPlayChannel: (List<Canal>, Int) -> Unit) {
         }
     }
 
-    // Al iniciar, si ya tenemos una URL guardada, descargamos y expandimos la lista automáticamente hasta cubrir el índice donde estaba el usuario
     LaunchedEffect(Unit) {
         val disclaimerVisto = prefs.getBoolean("disclaimer_visto", false)
         if (!disclaimerVisto) {
@@ -193,7 +193,6 @@ fun HomeScreen(onPlayChannel: (List<Canal>, Int) -> Unit) {
                     canalesCompletos.clear()
                     canalesCompletos.addAll(lista)
                     
-                    // Aseguramos cargar suficientes páginas para que el canal donde estaba el usuario ya esté dibujado en la grilla
                     val cantidadNecesaria = maxOf(itemsPorPagina, ((lastClickedIndex / itemsPorPagina) + 1) * itemsPorPagina)
                     val limiteInicial = minOf(cantidadNecesaria, canalesCompletos.size)
 
@@ -277,7 +276,7 @@ fun HomeScreen(onPlayChannel: (List<Canal>, Int) -> Unit) {
                                 unfocusedTextColor = Color.White
                             )
                         )
-                        Spacer(modifier = Modifier.width(10.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
                         Button(
                             onClick = { 
                                 if (urlInput.isNotEmpty()) {
@@ -303,6 +302,13 @@ fun HomeScreen(onPlayChannel: (List<Canal>, Int) -> Unit) {
                             colors = ButtonDefaults.buttonColors(containerColor = ColorDorado)
                         ) {
                             Text("CARGAR", color = Color.Black, fontWeight = FontWeight.Bold)
+                        }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Button(
+                            onClick = { onOpenXtreamCode() },
+                            colors = ButtonDefaults.buttonColors(containerColor = ColorDorado)
+                        ) {
+                            Text("Xtream Code", color = Color.Black, fontWeight = FontWeight.Bold)
                         }
                     }
 
@@ -339,7 +345,6 @@ fun HomeScreen(onPlayChannel: (List<Canal>, Int) -> Unit) {
                             val isSelected = (i == lastClickedIndex)
                             val focusRequester = remember { FocusRequester() }
 
-                            // Forzamos la restauración del foco y del scroll exacto una vez que los elementos se cargan en pantalla
                             LaunchedEffect(isSelected) {
                                 if (isSelected && canalesMostrar.size > i) {
                                     scrollState.scrollToItem(i)
