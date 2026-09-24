@@ -75,9 +75,8 @@ dependencies {
     implementation("androidx.media3:media3-datasource-okhttp:1.4.1")
 
     // Decodificadores por software avanzados (FFmpeg para audio pesado AC3/DTS)
-    implementation("androidx.media3:media3-decoder-ffmpeg:1.4.1")
     implementation("androidx.media3:media3-datasource-cache:1.4.1")
-    
+
     // Soportes para todos los formatos de IPTV (HLS, DASH y RTSP)
     implementation("androidx.media3:media3-exoplayer-hls:1.4.1")
     implementation("androidx.media3:media3-exoplayer-dash:1.4.1")
